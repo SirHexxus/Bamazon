@@ -14,7 +14,7 @@ const connection = mysql.createConnection({
 	password: process.env.DB_PASS
 })
 
-//  //  Inquirer Questions
+//  //  Inquirer Questions and variables
 const questions = [
 	{
 		type: "input",
@@ -28,8 +28,12 @@ const questions = [
 	}
 ]
 
-//  //  Global Variables
-let holding
+let idNum = 0;
+let numSold = 0;
+let toPrompt = false;
+
+//	//	Queries
+const listItems = 'SELECT item_id, product_name, price FROM products;';
 
 //  //  Prettifying
 const bottomBorder = "-=- =-= ".repeat(4)
@@ -39,15 +43,15 @@ const clear = "\n".repeat(75)
 //  Global Function Definitions
 
 //  //  Makes query to the Database
-const makeQuery = (query) => {
+const makeQuery = (query, func) => {
 	connection.connect((err) => {
         if(err) {
             console.log('Connection Error:');
             console.log(err.code);
             console.log(err.fatal);
-            console.log(err);
+            return console.log(err);
         }
-        console.log('Connection Opened!');
+        // console.log('Connection Opened!');
 	})
 
 	connection.query(query, (err, res) => {
@@ -55,9 +59,9 @@ const makeQuery = (query) => {
             console.log('Query Error:');
 			console.log(err.code);
 			console.log(err.fatal);
-			console.log(err)
+			return console.log(err)
 		}
-		console.log('Here are the results!\n' + JSON.stringify(res));
+        func(res);
 	})
 
 	connection.end(err => {
@@ -65,14 +69,92 @@ const makeQuery = (query) => {
             console.log('Connection End Error:');
 			console.log(err.code);
 			console.log(err.fatal);
-			console.log(err);
+			return console.log(err);
         }
-        console.log('Connection Closed!');
+        // console.log('Connection Closed!');
     })
-    
-    return holding;
 }
 
+const printList = (data) => {
+	console.log(bottomBorder);
+    for(let i = 0; i < data.length; i++) {
+		// console.log(res[i]);
+        for(let x in data[i]) {
+			// console.log(x);
+			// console.log(res[i][x]);
+            if(x === 'price') {
+                console.log(x + ':\t\t$' + data[i][x]);
+            }
+            else {
+                console.log(x + ':\t' + data[i][x]);
+            }
+		}
+		console.log(bottomBorder);
+	}
+	if(toPrompt) {
+		inquirer.prompt( questions ).then( answers => {
+			soldQuery( answers.id, answers.amount, data.price );
+		})
+
+	}
+}
+
+const soldQuery = (id, sold, price) => {
+	connection.connect((err) => {
+        if(err) {
+            console.log('Connection Error:');
+            console.log(err.code);
+            console.log(err.fatal);
+            return console.log(err);
+        }
+        // console.log('Connection Opened!');
+	})
+
+	let query = 'SELECT stock_quantity FROM products WHERE item_id = ' + id;
+	connection.query(query, (err, res) => {
+		if (err) {
+            console.log('Query Error:');
+			console.log(err.code);
+			console.log(err.fatal);
+			return console.log(err)
+		}
+		console.log(res);
+		let toUse = compare(res.stock_quantity, sold);
+		if(!toUse) {
+			console.log('Sorry, we don\'t have enough of those. We only have ' + res.stock_quantity + ' remaining.');
+		}
+		else {
+			connection.query('UPDATE products SET stock_quantity = ? WHERE item_id = ?',[ toUse, id ], (err, res) => {
+				if(err) {
+					console.log('Query Error:');
+					console.log(err.code);
+					console.log(err.fatal);
+					return console.log(err)
+				}
+				console.log('Final Price = $' + (sold * price));
+			})
+		}
+	})
+
+	connection.end(err => {
+		if (err) {
+            console.log('Connection End Error:');
+			console.log(err.code);
+			console.log(err.fatal);
+			return console.log(err);
+        }
+        // console.log('Connection Closed!');
+    })
+}
+
+const compare = (toCompare, compared) => {
+	if(toCompare > compared) {
+		return toCompare - compared;
+	}
+	else {
+		return false;
+	}
+} 
 // const getProducts = async (columns, table) => {
 
 //     let promise = new Promise(function(resolve, reject){
@@ -159,7 +241,8 @@ if (dotenv.error) {
 // 	}
 // })
 
-makeQuery('SELECT * FROM products;');
+toPrompt = true;
+makeQuery(listItems, printList);
 
 //  //  Makes Query to 'products' table
 /* 
